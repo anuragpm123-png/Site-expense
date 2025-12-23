@@ -24,6 +24,19 @@ st.title("🏗️ Site Expense Management System")
 # Load data
 df = pd.read_csv(FILE_NAME)
 
+# ---------------- SESSION STATE SETUP ----------------
+if "project_name" not in st.session_state:
+    st.session_state.project_name = ""
+if "person_name" not in st.session_state:
+    st.session_state.person_name = ""
+if "category" not in st.session_state:
+    st.session_state.category = "Installation"
+for exp in EXPENSE_COLUMNS:
+    if exp not in st.session_state:
+        st.session_state[exp] = 0.0
+if "narration" not in st.session_state:
+    st.session_state.narration = ""
+
 # ---------------- ADD / EDIT EXPENSE ----------------
 st.header("➕ Add / Edit Expense")
 
@@ -36,30 +49,29 @@ edit_index = st.selectbox(
 if edit_index != "New Entry":
     edit_index = int(edit_index)
     row = df.loc[edit_index]
-    expense_date = st.date_input("Date", pd.to_datetime(row["Date"]))
-    project_name = st.text_input("Project Name", row["Project Name"])
-    person_name = st.text_input("Person Name", row["Person Name"])
-    category = st.selectbox(
-        "Category",
-        ["Installation", "Additional Site Expense", "Delivery", "Installation + Delivery", "Measurement"],
-        index=["Installation", "Additional Site Expense", "Delivery", "Installation + Delivery", "Measurement"].index(row["Category"])
-    )
-    expense_values = {}
+    st.session_state.project_name = row["Project Name"]
+    st.session_state.person_name = row["Person Name"]
+    st.session_state.category = row["Category"]
     for exp in EXPENSE_COLUMNS:
-        expense_values[exp] = st.number_input(f"{exp} (₹)", value=float(row[exp]), min_value=0.0, step=1.0)
-    narration = st.text_area("Narration / Details", row["Narration"])
+        st.session_state[exp] = float(row[exp])
+    st.session_state.narration = row["Narration"]
+    expense_date = st.date_input("Date", pd.to_datetime(row["Date"]))
 else:
     expense_date = st.date_input("Date", date.today())
-    project_name = st.text_input("Project Name")
-    person_name = st.text_input("Person Name")
-    category = st.selectbox(
-        "Category",
-        ["Installation", "Additional Site Expense", "Delivery", "Installation + Delivery", "Measurement"]
-    )
-    expense_values = {}
-    for exp in EXPENSE_COLUMNS:
-        expense_values[exp] = st.number_input(f"{exp} (₹)", min_value=0.0, step=1.0)
-    narration = st.text_area("Narration / Details")
+
+# Form inputs
+project_name = st.text_input("Project Name", st.session_state.project_name, key="project_name")
+person_name = st.text_input("Person Name", st.session_state.person_name, key="person_name")
+category = st.selectbox(
+    "Category",
+    ["Installation", "Additional Site Expense", "Delivery", "Installation + Delivery", "Measurement"],
+    index=["Installation", "Additional Site Expense", "Delivery", "Installation + Delivery", "Measurement"].index(st.session_state.category),
+    key="category"
+)
+expense_values = {}
+for exp in EXPENSE_COLUMNS:
+    expense_values[exp] = st.number_input(f"{exp} (₹)", value=st.session_state[exp], min_value=0.0, step=1.0, key=exp)
+narration = st.text_area("Narration / Details", st.session_state.narration, key="narration")
 
 # Calculate total
 total_amount = sum(expense_values.values())
@@ -79,14 +91,19 @@ if st.button("Save Entry" if edit_index == "New Entry" else "Update Entry"):
 
         if edit_index == "New Entry":
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            df.to_csv(FILE_NAME, index=False)
             st.success(f"✅ Expense Saved Successfully. Total: ₹{total_amount}")
-            # Clear fields by rerunning the app
-            st.experimental_rerun()
+            # Clear inputs after save
+            st.session_state.project_name = ""
+            st.session_state.person_name = ""
+            st.session_state.category = "Installation"
+            for exp in EXPENSE_COLUMNS:
+                st.session_state[exp] = 0.0
+            st.session_state.narration = ""
         else:
             df.loc[edit_index] = new_row
-            df.to_csv(FILE_NAME, index=False)
             st.success(f"✅ Expense Updated Successfully. Total: ₹{total_amount}")
+
+        df.to_csv(FILE_NAME, index=False)
     else:
         st.warning("⚠️ Project Name and Person Name are required")
 
